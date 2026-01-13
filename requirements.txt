@@ -1,0 +1,18 @@
+# Job Scraper - Python Dependencies
+
+# HTTP požadavky
+requests>=2.31.0
+
+# HTML parsing
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# Excel operace
+openpyxl>=3.1.0
+
+# Scheduling
+schedule>=1.2.0
+
+# Logging - built-in Python module (není potřeba instalovat)
+# hashlib - built-in Python module (není potřeba instalovat)
+# urllib - built-in Python module (není potřeba instalovat)

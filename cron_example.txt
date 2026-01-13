@@ -1,0 +1,130 @@
+# Příklad konfigurace Cron pro automatické spouštění job scraperu
+# Linux/Mac/Unix systémy
+
+# ============================================================================
+# INSTALACE
+# ============================================================================
+# 1. Otevřete crontab editor:
+#    crontab -e
+#
+# 2. Přidejte jeden z řádků níže (upravte cesty podle vašeho systému)
+#
+# 3. Uložte a zavřete editor
+#
+# 4. Ověřte, že je cron task aktivní:
+#    crontab -l
+# ============================================================================
+
+# FORMÁT CRON:
+# Minuta (0-59) | Hodina (0-23) | Den měsíce (1-31) | Měsíc (1-12) | Den týdne (0-7, 0=neděle)
+# * * * * * příkaz
+
+
+# ----------------------------------------------------------------------------
+# PŘÍKLAD 1: Denní běh v 8:00 ráno
+# ----------------------------------------------------------------------------
+0 8 * * * cd /home/user/scrape_pracovni_nabidky && /home/user/scrape_pracovni_nabidky/venv/bin/python /home/user/scrape_pracovni_nabidky/main.py >> /home/user/scrape_pracovni_nabidky/cron.log 2>&1
+
+
+# ----------------------------------------------------------------------------
+# PŘÍKLAD 2: Denní běh v 8:00 s explicitním výstupem do logu
+# ----------------------------------------------------------------------------
+0 8 * * * cd /home/user/scrape_pracovni_nabidky && /home/user/scrape_pracovni_nabidky/venv/bin/python main.py > cron_output.log 2>&1
+
+
+# ----------------------------------------------------------------------------
+# PŘÍKLAD 3: Denní běh v 8:00 pouze ve všední dny (pondělí-pátek)
+# ----------------------------------------------------------------------------
+0 8 * * 1-5 cd /home/user/scrape_pracovni_nabidky && /home/user/scrape_pracovni_nabidky/venv/bin/python main.py >> cron.log 2>&1
+
+
+# ----------------------------------------------------------------------------
+# PŘÍKLAD 4: Dvakrát denně - 8:00 a 17:00
+# ----------------------------------------------------------------------------
+0 8,17 * * * cd /home/user/scrape_pracovni_nabidky && /home/user/scrape_pracovni_nabidky/venv/bin/python main.py >> cron.log 2>&1
+
+
+# ----------------------------------------------------------------------------
+# PŘÍKLAD 5: Každé 3 hodiny
+# ----------------------------------------------------------------------------
+0 */3 * * * cd /home/user/scrape_pracovni_nabidky && /home/user/scrape_pracovni_nabidky/venv/bin/python main.py >> cron.log 2>&1
+
+
+# ----------------------------------------------------------------------------
+# PŘÍKLAD 6: S environment variables pro LinkedIn
+# ----------------------------------------------------------------------------
+0 8 * * * cd /home/user/scrape_pracovni_nabidky && LINKEDIN_EMAIL="email@example.com" LINKEDIN_PASSWORD="password" /home/user/scrape_pracovni_nabidky/venv/bin/python main.py >> cron.log 2>&1
+
+
+# ============================================================================
+# DŮLEŽITÉ POZNÁMKY
+# ============================================================================
+#
+# 1. ABSOLUTNÍ CESTY:
+#    - Vždy používejte absolutní cesty (začínající /)
+#    - Cron nepoužívá váš uživatelský PATH
+#
+# 2. VIRTUAL ENVIRONMENT:
+#    - Používejte Python z venv: /cesta/k/venv/bin/python
+#    - Ne jen "python" nebo "python3"
+#
+# 3. WORKING DIRECTORY:
+#    - Vždy použijte "cd" pro změnu do správného adresáře
+#    - Důležité pro správné importy
+#
+# 4. LOGOVÁNÍ:
+#    - >> cron.log 2>&1 přesměruje stdout i stderr do logu
+#    - > cron.log 2>&1 přepíše log při každém běhu
+#
+# 5. ENVIRONMENT VARIABLES:
+#    - Cron má omezené environment variables
+#    - Explicitně nastavte potřebné proměnné v cron příkazu
+#
+# 6. TESTOVÁNÍ:
+#    - Otestujte příkaz ručně v terminálu před přidáním do cronu
+#    - Zkontrolujte cron.log pro případné chyby
+#
+# 7. OPRÁVNĚNÍ:
+#    - Ujistěte se, že máte oprávnění pro čtení/zápis v adresáři
+#    - main.py by měl být spustitelný (nebo volejte přes python)
+#
+# ============================================================================
+
+# UŽITEČNÉ CRON PŘÍKAZY:
+#
+# Zobrazit aktivní cron joby:
+#   crontab -l
+#
+# Editovat crontab:
+#   crontab -e
+#
+# Odstranit všechny cron joby:
+#   crontab -r
+#
+# Zkontrolovat cron log (Debian/Ubuntu):
+#   grep CRON /var/log/syslog
+#
+# Zkontrolovat cron log (CentOS/RedHat):
+#   grep CRON /var/log/cron
+#
+# ============================================================================
+
+# DEBUGGING:
+#
+# Pokud cron nefunguje, zkontrolujte:
+# 1. Je cron daemon spuštěný?
+#    sudo service cron status   # Debian/Ubuntu
+#    sudo systemctl status crond # CentOS/RedHat
+#
+# 2. Má uživatel oprávnění používat cron?
+#    ls /etc/cron.allow
+#    ls /etc/cron.deny
+#
+# 3. Jsou v logu nějaké chyby?
+#    tail -f /home/user/scrape_pracovni_nabidky/cron.log
+#
+# 4. Funguje příkaz při ručním spuštění?
+#    cd /home/user/scrape_pracovni_nabidky
+#    /home/user/scrape_pracovni_nabidky/venv/bin/python main.py
+#
+# ============================================================================
