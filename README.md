@@ -194,7 +194,21 @@ scrape_pracovni_nabidky/
 
 ## 🤖 Automatizace
 
-### Linux/Mac - Cron
+### macOS - launchd (Doporučeno)
+
+**Podrobný průvodce nastavením najdete v souboru:** [MACOS_LAUNCHD_SETUP.md](MACOS_LAUNCHD_SETUP.md)
+
+Rychlý postup:
+
+1. Upravte cestu v `run_scraper.sh`
+2. Nastavte práva: `chmod +x run_scraper.sh`
+3. Upravte cesty v `cz.jobs.scraper.plist` (nahraďte `VASE_UZIVATELSKE_JMENO`)
+4. Zkopírujte plist: `cp cz.jobs.scraper.plist ~/Library/LaunchAgents/`
+5. Načtěte službu: `launchctl load ~/Library/LaunchAgents/cz.jobs.scraper.plist`
+
+Scraper se bude automaticky spouštět každý den v 9:00.
+
+### Linux - Cron
 
 Ukázkový crontab záznam je v souboru `cron_example.txt`.
 
