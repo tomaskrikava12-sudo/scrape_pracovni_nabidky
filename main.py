@@ -87,6 +87,38 @@ def filter_by_exclude_keywords(jobs: list) -> list:
     return filtered_jobs
 
 
+def filter_by_language_requirements(jobs: list) -> list:
+    """
+    Vyfiltruje nabídky s nežádoucími jazykovými požadavky (C1 angličtina, němčina)
+
+    Args:
+        jobs: Seznam nabídek
+
+    Returns:
+        Filtrovaný seznam nabídek
+    """
+    if not config.EXCLUDE_LANGUAGE_REQUIREMENTS:
+        return jobs
+
+    filtered_jobs = []
+    for job in jobs:
+        # Hledáme v názvu, popisu a dalších textech
+        nazev = (job.get('nazev_pozice', '') or '').lower()
+        popis = (job.get('popis', '') or '').lower()
+        combined_text = f"{nazev} {popis}"
+
+        # Kontrola zda text obsahuje nějaký vyloučený jazykový požadavek
+        has_excluded_language = any(
+            lang_req.lower() in combined_text
+            for lang_req in config.EXCLUDE_LANGUAGE_REQUIREMENTS
+        )
+
+        if not has_excluded_language:
+            filtered_jobs.append(job)
+
+    return filtered_jobs
+
+
 def get_scraper_by_name(portal_name: str):
     """
     Vrátí instanci scraperu podle názvu portálu
@@ -191,6 +223,13 @@ def run_scraping(portal_filter=None):
             filtered_by_keywords = jobs_before_exclude_filter - len(jobs)
             if filtered_by_keywords > 0:
                 logger.info(f"Vyfiltrováno {filtered_by_keywords} junior/nežádoucích pozic")
+
+            # Filtrování jazykových požadavků (C1 angličtina, němčina)
+            jobs_before_lang_filter = len(jobs)
+            jobs = filter_by_language_requirements(jobs)
+            filtered_by_languages = jobs_before_lang_filter - len(jobs)
+            if filtered_by_languages > 0:
+                logger.info(f"Vyfiltrováno {filtered_by_languages} nabídek s nežádoucími jazykovými požadavky")
 
             logger.info(f"Po filtrování zůstává {len(jobs)} nabídek")
 

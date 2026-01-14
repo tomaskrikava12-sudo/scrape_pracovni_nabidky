@@ -172,6 +172,15 @@ class JobsCzScraper(BaseScraper):
             typ_elem = job_element.find(class_=lambda x: x and ('employment' in str(x).lower() or 'contract' in str(x).lower()))
             typ_uvazku = typ_elem.get_text(strip=True) if typ_elem else "N/A"
 
+            # Popis/požadavky nabídky (pro filtrování jazyků apod.)
+            popis_elem = job_element.find(class_=lambda x: x and 'description' in str(x).lower())
+            if not popis_elem:
+                popis_elem = job_element.find(class_=lambda x: x and 'requirements' in str(x).lower())
+            if not popis_elem:
+                popis_elem = job_element.find(class_=lambda x: x and 'SearchResultCard__label' in str(x))
+
+            popis = popis_elem.get_text(strip=True) if popis_elem else ""
+
             # Sestavení výsledku
             job_data = {
                 'nazev_pozice': nazev_pozice,
@@ -180,6 +189,7 @@ class JobsCzScraper(BaseScraper):
                 'typ_uvazku': typ_uvazku,
                 'url': url,
                 'mzda': mzda,
+                'popis': popis,  # Přidán popis pro filtrování
                 'portal': 'jobs.cz',
                 'datum_nalezeni': datetime.now().strftime('%Y-%m-%d'),
             }

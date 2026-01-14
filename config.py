@@ -54,6 +54,29 @@ EXCLUDE_KEYWORDS = [
     "stážista",
 ]
 
+# Vyloučené jazykové požadavky (v popisu/požadavcích)
+# Pokud nabídka obsahuje některé z těchto frází, bude vyloučena
+EXCLUDE_LANGUAGE_REQUIREMENTS = [
+    # Angličtina C1
+    "c1 english",
+    "english c1",
+    "angličtina c1",
+    "c1 angličtina",
+    "anglický jazyk c1",
+    "c1 level english",
+    "english level c1",
+
+    # Němčina (všechny úrovně)
+    "němčina",
+    "nemčina",
+    "german",
+    "deutsch",
+    "německý jazyk",
+    "nemecký jazyk",
+    "německy",
+    "nemecky",
+]
+
 # ============================================================================
 # PROFIL KANDIDÁTA
 # ============================================================================
