@@ -127,6 +127,8 @@ class JobsCzScraper(BaseScraper):
             Slovník s daty nebo None
         """
         try:
+            self.logger.debug("=== Začínám parsování nabídky ===")
+
             # Název pozice a URL - z linku v h2
             title_link = job_element.find('a', class_=lambda x: x and 'SearchResultCard__titleLink' in x)
 
@@ -139,31 +141,39 @@ class JobsCzScraper(BaseScraper):
                 url = title_link.get('href', '')
                 if url and not url.startswith('http'):
                     url = self.base_url + url
+                self.logger.debug(f"Název: {nazev_pozice[:50]}")
             else:
                 nazev_pozice = "N/A"
                 url = ""
+                self.logger.debug("CHYBA: Nenalezen title_link!")
 
             # Společnost - je v footer → footerItem → span[translate="no"]
             footer = job_element.find('footer', class_='SearchResultCard__footer')
             spolecnost = "N/A"
+            self.logger.debug(f"Footer nalezen: {footer is not None}")
             if footer:
                 # První footerItem obvykle obsahuje společnost
                 footer_items = footer.find_all('li', class_='SearchResultCard__footerItem')
+                self.logger.debug(f"Footer items nalezeno: {len(footer_items)}")
                 if footer_items:
                     # Hledáme span s translate="no" (první item)
                     spolecnost_span = footer_items[0].find('span', attrs={'translate': 'no'})
                     if spolecnost_span:
                         spolecnost = spolecnost_span.get_text(strip=True)
+                        self.logger.debug(f"Společnost (span): {spolecnost}")
                     else:
                         # Fallback - vezmi text první položky (bez SVG)
                         spolecnost = footer_items[0].get_text(strip=True)
+                        self.logger.debug(f"Společnost (fallback): {spolecnost}")
 
             # Lokace - je v footer → li[data-test="serp-locality"]
             lokace = "N/A"
             if footer:
                 lokace_elem = footer.find('li', attrs={'data-test': 'serp-locality'})
+                self.logger.debug(f"Lokace element nalezen: {lokace_elem is not None}")
                 if lokace_elem:
                     lokace = lokace_elem.get_text(strip=True)
+                    self.logger.debug(f"Lokace: {lokace}")
 
             # Mzda - je v body → Tag span (hledáme čísla s Kč)
             mzda = None
