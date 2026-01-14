@@ -89,22 +89,20 @@ class JobsCzScraper(BaseScraper):
 
         Returns:
             Seznam slovníků s nabídkami
-
-        POZNÁMKA: Selektory jsou UKÁZKOVÉ a musí být upraveny
-        podle skutečné HTML struktury jobs.cz
         """
         jobs = []
 
-        # PŘÍKLAD selektorů - MUSÍ BÝT UPRAVENO podle skutečné struktury
-        # Toto je pouze demonstrační kód
-        job_listings = soup.find_all('article', class_='standalone-job-item')
+        # Aktuální selektory podle HTML struktury jobs.cz (leden 2024)
+        # Hledáme hlavní kontejner s nabídkami
+        job_listings = soup.find_all('article', class_=lambda x: x and 'SearchResultCard' in x)
 
         if not job_listings:
-            # Zkusit alternativní selektory
-            job_listings = soup.find_all('div', class_='search-list__item')
+            # Zkusit alternativní selektor
+            job_listings = soup.find_all('div', class_=lambda x: x and 'SearchResultCard' in x)
 
         if not job_listings:
             self.logger.warning("Nenalezeny žádné job listings (možná změna HTML struktury)")
+            self.logger.debug(f"HTML snippet: {str(soup)[:500]}")
             return jobs
 
         for job_elem in job_listings:
@@ -123,52 +121,56 @@ class JobsCzScraper(BaseScraper):
         Extrahuje detaily o nabídce z HTML elementu
 
         Args:
-            job_element: BeautifulSoup element
+            job_element: BeautifulSoup element (SearchResultCard)
 
         Returns:
             Slovník s daty nebo None
-
-        POZNÁMKA: Toto je UKÁZKOVÝ kód. Skutečné selektory HTML
-        musí být upraveny podle aktuální struktury jobs.cz
         """
         try:
-            # PŘÍKLADY extrakce - MUSÍ BÝT UPRAVENO
-            # Název pozice
-            nazev_elem = job_element.find('h2', class_='standalone-job-item__title')
-            if not nazev_elem:
-                nazev_elem = job_element.find('a', class_='search-list__main-info__title__link')
+            # Název pozice a URL - z linku v h2
+            title_link = job_element.find('a', class_=lambda x: x and 'SearchResultCard__titleLink' in x)
 
-            nazev_pozice = nazev_elem.get_text(strip=True) if nazev_elem else "N/A"
+            if not title_link:
+                # Fallback - zkusit najít jakýkoliv link
+                title_link = job_element.find('a', href=True)
 
-            # URL
-            url_elem = job_element.find('a', href=True)
-            url = url_elem['href'] if url_elem else ""
-            if url and not url.startswith('http'):
-                url = self.base_url + url
+            if title_link:
+                nazev_pozice = title_link.get_text(strip=True)
+                url = title_link.get('href', '')
+                if url and not url.startswith('http'):
+                    url = self.base_url + url
+            else:
+                nazev_pozice = "N/A"
+                url = ""
 
-            # Společnost
-            spolecnost_elem = job_element.find('span', class_='standalone-job-item__employer')
+            # Společnost - hledáme v metadata nebo info sekcích
+            spolecnost_elem = job_element.find('a', class_=lambda x: x and 'SearchResultCard__org' in x)
             if not spolecnost_elem:
-                spolecnost_elem = job_element.find('li', class_='search-list__main-info__employer')
+                spolecnost_elem = job_element.find(class_=lambda x: x and 'employer' in str(x).lower())
+            if not spolecnost_elem:
+                spolecnost_elem = job_element.find(class_=lambda x: x and 'company' in str(x).lower())
 
             spolecnost = spolecnost_elem.get_text(strip=True) if spolecnost_elem else "N/A"
 
             # Lokace
-            lokace_elem = job_element.find('span', class_='standalone-job-item__locality')
+            lokace_elem = job_element.find('span', class_=lambda x: x and 'SearchResultCard__location' in x)
             if not lokace_elem:
-                lokace_elem = job_element.find('li', class_='search-list__main-info__locality')
+                lokace_elem = job_element.find(class_=lambda x: x and 'locality' in str(x).lower())
+            if not lokace_elem:
+                lokace_elem = job_element.find(class_=lambda x: x and 'location' in str(x).lower())
 
             lokace = lokace_elem.get_text(strip=True) if lokace_elem else "N/A"
 
             # Mzda (není vždy uvedena)
-            mzda_elem = job_element.find('span', class_='standalone-job-item__salary')
+            mzda_elem = job_element.find(class_=lambda x: x and 'salary' in str(x).lower())
+            if not mzda_elem:
+                mzda_elem = job_element.find(class_=lambda x: x and 'wage' in str(x).lower())
+
             mzda = mzda_elem.get_text(strip=True) if mzda_elem else None
 
-            # Typ úvazku (pokud je uveden)
-            typ_uvazku = "N/A"
-            typ_elem = job_element.find('span', class_='job-type')
-            if typ_elem:
-                typ_uvazku = typ_elem.get_text(strip=True)
+            # Typ úvazku
+            typ_elem = job_element.find(class_=lambda x: x and ('employment' in str(x).lower() or 'contract' in str(x).lower()))
+            typ_uvazku = typ_elem.get_text(strip=True) if typ_elem else "N/A"
 
             # Sestavení výsledku
             job_data = {
