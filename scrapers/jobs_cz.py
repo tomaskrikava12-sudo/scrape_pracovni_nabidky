@@ -143,30 +143,39 @@ class JobsCzScraper(BaseScraper):
                 nazev_pozice = "N/A"
                 url = ""
 
-            # Společnost - hledáme v metadata nebo info sekcích
-            spolecnost_elem = job_element.find('a', class_=lambda x: x and 'SearchResultCard__org' in x)
-            if not spolecnost_elem:
-                spolecnost_elem = job_element.find(class_=lambda x: x and 'employer' in str(x).lower())
-            if not spolecnost_elem:
-                spolecnost_elem = job_element.find(class_=lambda x: x and 'company' in str(x).lower())
+            # Společnost - je v footer → footerItem → span[translate="no"]
+            footer = job_element.find('footer', class_='SearchResultCard__footer')
+            spolecnost = "N/A"
+            if footer:
+                # První footerItem obvykle obsahuje společnost
+                footer_items = footer.find_all('li', class_='SearchResultCard__footerItem')
+                if footer_items:
+                    # Hledáme span s translate="no" (první item)
+                    spolecnost_span = footer_items[0].find('span', attrs={'translate': 'no'})
+                    if spolecnost_span:
+                        spolecnost = spolecnost_span.get_text(strip=True)
+                    else:
+                        # Fallback - vezmi text první položky (bez SVG)
+                        spolecnost = footer_items[0].get_text(strip=True)
 
-            spolecnost = spolecnost_elem.get_text(strip=True) if spolecnost_elem else "N/A"
+            # Lokace - je v footer → li[data-test="serp-locality"]
+            lokace = "N/A"
+            if footer:
+                lokace_elem = footer.find('li', attrs={'data-test': 'serp-locality'})
+                if lokace_elem:
+                    lokace = lokace_elem.get_text(strip=True)
 
-            # Lokace
-            lokace_elem = job_element.find('span', class_=lambda x: x and 'SearchResultCard__location' in x)
-            if not lokace_elem:
-                lokace_elem = job_element.find(class_=lambda x: x and 'locality' in str(x).lower())
-            if not lokace_elem:
-                lokace_elem = job_element.find(class_=lambda x: x and 'location' in str(x).lower())
-
-            lokace = lokace_elem.get_text(strip=True) if lokace_elem else "N/A"
-
-            # Mzda (není vždy uvedena)
-            mzda_elem = job_element.find(class_=lambda x: x and 'salary' in str(x).lower())
-            if not mzda_elem:
-                mzda_elem = job_element.find(class_=lambda x: x and 'wage' in str(x).lower())
-
-            mzda = mzda_elem.get_text(strip=True) if mzda_elem else None
+            # Mzda - je v body → Tag span (hledáme čísla s Kč)
+            mzda = None
+            body = job_element.find('div', class_='SearchResultCard__body')
+            if body:
+                tags = body.find_all('span', class_='Tag')
+                for tag in tags:
+                    text = tag.get_text(strip=True)
+                    # Hledáme tag s platovým rozpětím (obsahuje Kč nebo €)
+                    if 'Kč' in text or '€' in text or '–' in text:
+                        mzda = text
+                        break
 
             # Typ úvazku
             typ_elem = job_element.find(class_=lambda x: x and ('employment' in str(x).lower() or 'contract' in str(x).lower()))
