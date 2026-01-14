@@ -172,7 +172,12 @@ class ExcelHandler:
 
             # Zápis dat do řádku
             for col_num, value in enumerate(row_data, start=1):
-                self.worksheet.cell(row=next_row, column=col_num, value=value)
+                cell = self.worksheet.cell(row=next_row, column=col_num, value=value)
+
+                # Sloupec H (8) obsahuje URL - formátovat jako hyperlink
+                if col_num == 8 and value:  # URL sloupec
+                    cell.hyperlink = value
+                    cell.style = "Hyperlink"
 
             # Zvýraznění řádku podle relevance
             if job_data.get('relevance') == 'High':
