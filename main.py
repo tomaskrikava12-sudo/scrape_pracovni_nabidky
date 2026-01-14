@@ -39,6 +39,54 @@ def setup_logging():
     )
 
 
+def filter_by_location(jobs: list) -> list:
+    """
+    Filtruje nabídky podle požadované lokality
+
+    Args:
+        jobs: Seznam nabídek
+
+    Returns:
+        Filtrovaný seznam nabídek
+    """
+    if not config.REQUIRED_LOCATIONS:
+        return jobs
+
+    filtered_jobs = []
+    for job in jobs:
+        lokace = (job.get('lokace', '') or '').lower()
+
+        # Kontrola zda lokace obsahuje některou z požadovaných lokalit
+        if any(req_loc in lokace for req_loc in config.REQUIRED_LOCATIONS):
+            filtered_jobs.append(job)
+
+    return filtered_jobs
+
+
+def filter_by_exclude_keywords(jobs: list) -> list:
+    """
+    Vyfiltruje nabídky obsahující nežádoucí klíčová slova (např. junior)
+
+    Args:
+        jobs: Seznam nabídek
+
+    Returns:
+        Filtrovaný seznam nabídek
+    """
+    if not config.EXCLUDE_KEYWORDS:
+        return jobs
+
+    filtered_jobs = []
+    for job in jobs:
+        nazev = (job.get('nazev_pozice', '') or '').lower()
+
+        # Kontrola zda název obsahuje nějaké vyloučené klíčové slovo
+        if not any(exclude_kw in nazev for exclude_kw in config.EXCLUDE_KEYWORDS):
+            filtered_jobs.append(job)
+
+    return filtered_jobs
+
+
 def get_scraper_by_name(portal_name: str):
     """
     Vrátí instanci scraperu podle názvu portálu
@@ -129,6 +177,22 @@ def run_scraping(portal_filter=None):
             jobs = scraper.scrape(keywords)
             total_found += len(jobs)
             logger.info(f"Nalezeno {len(jobs)} nabídek na {portal_name}")
+
+            # Filtrování podle lokality
+            jobs_before_location_filter = len(jobs)
+            jobs = filter_by_location(jobs)
+            filtered_by_location = jobs_before_location_filter - len(jobs)
+            if filtered_by_location > 0:
+                logger.info(f"Vyfiltrováno {filtered_by_location} nabídek podle lokality")
+
+            # Filtrování vyloučených klíčových slov (junior atd.)
+            jobs_before_exclude_filter = len(jobs)
+            jobs = filter_by_exclude_keywords(jobs)
+            filtered_by_keywords = jobs_before_exclude_filter - len(jobs)
+            if filtered_by_keywords > 0:
+                logger.info(f"Vyfiltrováno {filtered_by_keywords} junior/nežádoucích pozic")
+
+            logger.info(f"Po filtrování zůstává {len(jobs)} nabídek")
 
             # Přidání relevance skóre
             jobs = relevance_scorer.add_relevance_to_jobs(jobs)

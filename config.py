@@ -42,6 +42,18 @@ SECONDARY_KEYWORDS = [
 # Všechna klíčová slova dohromady
 ALL_KEYWORDS = PRIMARY_KEYWORDS + SECONDARY_KEYWORDS
 
+# Klíčová slova k vyloučení (negativní filtr)
+EXCLUDE_KEYWORDS = [
+    "junior",
+    "junior.",
+    "mladší",
+    "trainee",
+    "intern",
+    "internship",
+    "stáž",
+    "stážista",
+]
+
 # ============================================================================
 # PROFIL KANDIDÁTA
 # ============================================================================
@@ -66,6 +78,14 @@ CANDIDATE_PROFILE = {
     "klienti": ["Rituals", "Philips", "Caffe Imperial Dolce"],
     "lokace_preferovana": ["Praha", "remote", "hybrid"],
 }
+
+# Požadované lokality (striktní filtr) - pouze nabídky z těchto lokalit
+# Prázdný seznam = žádné filtrování podle lokality
+REQUIRED_LOCATIONS = [
+    "praha",
+    "hlavní město praha",
+    "prague",
+]
 
 # Klíčová slova pro vysokou relevanci (weighted scoring)
 HIGH_RELEVANCE_KEYWORDS = [
