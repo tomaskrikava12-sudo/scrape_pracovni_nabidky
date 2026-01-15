@@ -6,6 +6,7 @@ Vyhledává pracovní nabídky na prace.cz
 from datetime import datetime
 from typing import List, Dict
 import urllib.parse
+import unicodedata
 
 from .base_scraper import BaseScraper
 
@@ -20,8 +21,7 @@ class PraceCzScraper(BaseScraper):
     """
     Scraper pro prace.cz
 
-    POZNÁMKA: HTML selektory jsou ukázkové a musí být upraveny
-    podle skutečné struktury stránky prace.cz
+    POZNÁMKA: HTML selektory jsou podle skutečné struktury prace.cz
     """
 
     def __init__(self):
@@ -29,10 +29,37 @@ class PraceCzScraper(BaseScraper):
         super().__init__("prace_cz")
         self.base_url = config.TARGET_PORTALS["prace_cz"]["base_url"]
 
+    def _normalize_keyword(self, keyword: str) -> str:
+        """
+        Normalizuje keyword pro prace.cz URL formát
+
+        Převádí "Projektový manažer" → "projektovy-manazer"
+        """
+        # Odstranění diakritiky
+        normalized = unicodedata.normalize('NFKD', keyword)
+        ascii_keyword = ''.join([c for c in normalized if not unicodedata.combining(c)])
+
+        # Lowercase a nahrazení mezer pomlčkami
+        slug = ascii_keyword.lower().replace(' ', '-')
+
+        # Odstranění speciálních znaků kromě pomlček
+        slug = ''.join([c if c.isalnum() or c == '-' else '' for c in slug])
+
+        # Odstranění duplicitních pomlček
+        while '--' in slug:
+            slug = slug.replace('--', '-')
+
+        # Odstranění pomlček na začátku/konci
+        slug = slug.strip('-')
+
+        return slug
+
     def _build_search_url(self, keyword: str) -> str:
         """Sestaví search URL pro prace.cz"""
-        encoded_keyword = urllib.parse.quote_plus(keyword)
-        return f"{self.base_url}/hledani/?q={encoded_keyword}"
+        normalized_keyword = self._normalize_keyword(keyword)
+        url = f"{self.base_url}/nabidky/{normalized_keyword}/"
+        self.logger.debug(f"URL pro '{keyword}': {url}")
+        return url
 
     def scrape(self, keywords: List[str]) -> List[Dict]:
         """Scrapuje prace.cz pro zadaná klíčová slova"""
