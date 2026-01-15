@@ -40,6 +40,7 @@ class ExcelHandler:
         self.logger = logging.getLogger("excel_handler")
         self.workbook = None
         self.worksheet = None
+        self.records_added = 0  # Počítadlo přidaných záznamů
 
     def _create_new_file(self):
         """Vytvoří nový Excel soubor se strukturou"""
@@ -186,6 +187,7 @@ class ExcelHandler:
                     self.worksheet.cell(row=next_row, column=col_num).fill = fill
 
             self.logger.debug(f"Přidána nabídka: {job_data.get('nazev_pozice')} @ {job_data.get('spolecnost')}")
+            self.records_added += 1  # Inkrementace počítadla
             return True
 
         except Exception as e:
@@ -215,14 +217,18 @@ class ExcelHandler:
         return added_count
 
     def save(self):
-        """Uloží změny do Excel souboru"""
+        """Uloží změny do Excel souboru (pouze pokud byly přidány nové záznamy)"""
         if not self.workbook:
             self.logger.warning("Není co ukládat - workbook není načtený")
             return
 
+        if self.records_added == 0:
+            self.logger.info("Žádné nové záznamy nepřidány - ukládání přeskočeno")
+            return
+
         try:
             self.workbook.save(self.file_path)
-            self.logger.info(f"Excel soubor uložen: {self.file_path}")
+            self.logger.info(f"Excel soubor uložen: {self.file_path} ({self.records_added} nových záznamů)")
         except Exception as e:
             self.logger.error(f"Chyba při ukládání souboru: {e}", exc_info=True)
 
