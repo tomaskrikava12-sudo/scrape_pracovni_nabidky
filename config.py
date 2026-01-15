@@ -195,7 +195,7 @@ EXCEL_SHEET_NAME = "Nabídky"
 
 # Logování
 LOG_FILE = "scraper.log"
-LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_LEVEL = "DEBUG"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 # ============================================================================
