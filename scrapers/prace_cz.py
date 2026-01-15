@@ -64,15 +64,14 @@ class PraceCzScraper(BaseScraper):
         """Extrahuje nabídky ze stránky s výsledky"""
         jobs = []
 
-        # UKÁZKOVÉ selektory - upravit podle skutečné struktury
-        job_listings = soup.find_all('div', class_='job-item')
-
-        if not job_listings:
-            job_listings = soup.find_all('article', class_='job-listing')
+        # Skutečné selektory podle HTML struktury prace.cz
+        job_listings = soup.find_all('li', class_='search-result__advert')
 
         if not job_listings:
             self.logger.warning("Nenalezeny žádné job listings")
             return jobs
+
+        self.logger.debug(f"Nalezeno {len(job_listings)} job listings")
 
         for job_elem in job_listings:
             try:
@@ -88,34 +87,76 @@ class PraceCzScraper(BaseScraper):
     def _extract_job_details(self, job_element) -> Dict:
         """Extrahuje detaily o nabídce z HTML elementu"""
         try:
-            # Název pozice
-            nazev_elem = job_element.find('h3', class_='job-title')
-            if not nazev_elem:
-                nazev_elem = job_element.find('a', class_='job-link')
+            self.logger.debug("=== Začínám parsování nabídky prace.cz ===")
 
-            nazev_pozice = nazev_elem.get_text(strip=True) if nazev_elem else "N/A"
+            # Název pozice - v h3.half-standalone → a → strong
+            nazev_pozice = "N/A"
+            h3_elem = job_element.find('h3', class_='half-standalone')
+            if h3_elem:
+                a_elem = h3_elem.find('a', class_='link')
+                if a_elem:
+                    strong_elem = a_elem.find('strong')
+                    if strong_elem:
+                        nazev_pozice = strong_elem.get_text(strip=True)
+                    else:
+                        nazev_pozice = a_elem.get_text(strip=True)
 
-            # URL
-            url_elem = job_element.find('a', href=True)
-            url = url_elem['href'] if url_elem else ""
-            if url and not url.startswith('http'):
-                url = self.base_url + url
+            self.logger.debug(f"Název: {nazev_pozice}")
 
-            # Společnost
-            spolecnost_elem = job_element.find('span', class_='company-name')
-            spolecnost = spolecnost_elem.get_text(strip=True) if spolecnost_elem else "N/A"
+            # URL - také v h3 → a[href]
+            url = ""
+            if h3_elem:
+                a_elem = h3_elem.find('a', href=True)
+                if a_elem:
+                    url = a_elem['href']
+                    if url and not url.startswith('http'):
+                        url = self.base_url + url
 
-            # Lokace
-            lokace_elem = job_element.find('span', class_='location')
-            lokace = lokace_elem.get_text(strip=True) if lokace_elem else "N/A"
+            self.logger.debug(f"URL: {url}")
 
-            # Mzda
-            mzda_elem = job_element.find('span', class_='salary')
-            mzda = mzda_elem.get_text(strip=True) if mzda_elem else None
+            # Lokace - div.search-result__advert__box__item--location → strong
+            lokace = "N/A"
+            lokace_div = job_element.find('div', class_='search-result__advert__box__item--location')
+            if lokace_div:
+                strong_elem = lokace_div.find('strong')
+                if strong_elem:
+                    lokace = strong_elem.get_text(strip=True)
+                else:
+                    lokace = lokace_div.get_text(strip=True)
 
-            # Typ úvazku
-            typ_elem = job_element.find('span', class_='employment-type')
-            typ_uvazku = typ_elem.get_text(strip=True) if typ_elem else "N/A"
+            self.logger.debug(f"Lokace: {lokace}")
+
+            # Společnost - div.search-result__advert__box__item--company
+            spolecnost = "N/A"
+            company_div = job_element.find('div', class_='search-result__advert__box__item--company')
+            if company_div:
+                # Odstraníme oddělovač •
+                separator = company_div.find('div', class_='search-result__advert__box__separator')
+                if separator:
+                    separator.decompose()
+                spolecnost = company_div.get_text(strip=True)
+
+            self.logger.debug(f"Společnost: {spolecnost}")
+
+            # Typ úvazku - div.search-result__advert__box__item--employment-type
+            typ_uvazku = "N/A"
+            type_div = job_element.find('div', class_='search-result__advert__box__item--employment-type')
+            if type_div:
+                # Odstraníme oddělovač •
+                separator = type_div.find('div', class_='search-result__advert__box__separator')
+                if separator:
+                    separator.decompose()
+                typ_uvazku = type_div.get_text(strip=True)
+
+            self.logger.debug(f"Typ úvazku: {typ_uvazku}")
+
+            # Mzda - hledáme div s třídou obsahující 'salary' nebo 'wage'
+            mzda = None
+            salary_div = job_element.find('div', class_=lambda x: x and ('salary' in x or 'wage' in x))
+            if salary_div:
+                mzda = salary_div.get_text(strip=True)
+
+            self.logger.debug(f"Mzda: {mzda}")
 
             job_data = {
                 'nazev_pozice': nazev_pozice,
