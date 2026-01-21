@@ -2,15 +2,15 @@
 Scraper pro startupjobs.cz
 Vyhledává pracovní nabídky na startupjobs.cz
 
-POZNÁMKA: HTML selektory jsou odvozeny z běžných vzorů job boardů.
-Pokud scraper nenajde nabídky, spusťte s DEBUG logováním
-a zkontrolujte skutečnou HTML strukturu ve výstupu.
+DŮLEŽITÉ: StartupJobs používá JavaScript SPA (Nuxt.js).
+HTML scraping nefunguje, protože obsah se načítá dynamicky.
+Tento scraper používá interní API pro získání nabídek.
 """
 
 from datetime import datetime
 from typing import List, Dict, Optional
 import urllib.parse
-import re
+import json
 
 from .base_scraper import BaseScraper
 
@@ -25,68 +25,13 @@ class StartupJobsScraper(BaseScraper):
     """
     Scraper pro startupjobs.cz
 
-    Implementuje robustní extrakci s více fallback selektory
-    pro lepší odolnost proti změnám HTML struktury.
+    Používá interní API pro získání nabídek, protože web je
+    JavaScript SPA a HTML scraping nefunguje.
     """
 
-    # Selektory pro kontejner nabídek (v pořadí priority)
-    JOB_CONTAINER_SELECTORS = [
-        # Běžné vzory pro job karty
-        ('div', {'class_': re.compile(r'job[-_]?card', re.I)}),
-        ('div', {'class_': re.compile(r'job[-_]?offer', re.I)}),
-        ('div', {'class_': re.compile(r'offer[-_]?card', re.I)}),
-        ('div', {'class_': re.compile(r'position[-_]?card', re.I)}),
-        ('article', {'class_': re.compile(r'job', re.I)}),
-        ('article', {'class_': re.compile(r'offer', re.I)}),
-        ('li', {'class_': re.compile(r'job', re.I)}),
-        ('a', {'class_': re.compile(r'job[-_]?card', re.I)}),
-        # Data atributy
-        ('div', {'attrs': {'data-job-id': True}}),
-        ('div', {'attrs': {'data-offer-id': True}}),
-        ('article', {'attrs': {'data-jobid': True}}),
-    ]
-
-    # Selektory pro název pozice
-    TITLE_SELECTORS = [
-        ('h2', {'class_': re.compile(r'title|name|position', re.I)}),
-        ('h3', {'class_': re.compile(r'title|name|position', re.I)}),
-        ('a', {'class_': re.compile(r'title|name', re.I)}),
-        ('span', {'class_': re.compile(r'title|name|position', re.I)}),
-        ('div', {'class_': re.compile(r'job[-_]?title', re.I)}),
-        ('h2', {}),  # Fallback na první h2
-        ('h3', {}),  # Fallback na první h3
-    ]
-
-    # Selektory pro společnost
-    COMPANY_SELECTORS = [
-        ('div', {'class_': re.compile(r'company|startup|firm', re.I)}),
-        ('span', {'class_': re.compile(r'company|startup|firm', re.I)}),
-        ('a', {'class_': re.compile(r'company|startup', re.I)}),
-        ('p', {'class_': re.compile(r'company', re.I)}),
-        ('strong', {'class_': re.compile(r'company', re.I)}),
-    ]
-
-    # Selektory pro lokaci
-    LOCATION_SELECTORS = [
-        ('span', {'class_': re.compile(r'location|place|city|lokal', re.I)}),
-        ('div', {'class_': re.compile(r'location|place|city', re.I)}),
-        ('p', {'class_': re.compile(r'location', re.I)}),
-        ('a', {'class_': re.compile(r'location', re.I)}),
-    ]
-
-    # Selektory pro mzdu
-    SALARY_SELECTORS = [
-        ('span', {'class_': re.compile(r'salary|wage|pay|mzda|plat', re.I)}),
-        ('div', {'class_': re.compile(r'salary|wage|pay|mzda', re.I)}),
-        ('p', {'class_': re.compile(r'salary', re.I)}),
-    ]
-
-    # Selektory pro typ úvazku
-    JOB_TYPE_SELECTORS = [
-        ('span', {'class_': re.compile(r'type|contract|uvazek|employment', re.I)}),
-        ('div', {'class_': re.compile(r'type|contract|employment', re.I)}),
-        ('span', {'class_': re.compile(r'tag|label|badge', re.I)}),
-    ]
+    # API endpoint pro vyhledávání nabídek
+    API_BASE_URL = "https://api.startupjobs.cz/api"
+    SEARCH_API_URL = "https://www.startupjobs.cz/api/offers"
 
     def __init__(self):
         """Inicializace startupjobs.cz scraperu"""
@@ -96,12 +41,30 @@ class StartupJobsScraper(BaseScraper):
     def _build_search_url(self, keyword: str) -> str:
         """Sestaví search URL pro startupjobs.cz"""
         encoded_keyword = urllib.parse.quote_plus(keyword)
-        # Formát URL: /nabidky?search=keyword
         return f"{self.base_url}/nabidky?search={encoded_keyword}"
+
+    def _build_api_url(self, keyword: str, page: int = 1) -> str:
+        """
+        Sestaví API URL pro vyhledávání nabídek.
+
+        Args:
+            keyword: Klíčové slovo pro vyhledávání
+            page: Číslo stránky
+
+        Returns:
+            API URL
+        """
+        params = {
+            'search': keyword,
+            'page': page,
+            'limit': 50,
+        }
+        query_string = urllib.parse.urlencode(params)
+        return f"{self.SEARCH_API_URL}?{query_string}"
 
     def scrape(self, keywords: List[str]) -> List[Dict]:
         """
-        Scrapuje startupjobs.cz pro zadaná klíčová slova
+        Scrapuje startupjobs.cz pro zadaná klíčová slova pomocí API.
 
         Args:
             keywords: Seznam klíčových slov pro vyhledávání
@@ -114,25 +77,15 @@ class StartupJobsScraper(BaseScraper):
 
         for keyword in keywords:
             self.logger.info(f"Hledám: {keyword}")
-            search_url = self._build_search_url(keyword)
-            self.logger.debug(f"URL: {search_url}")
 
-            response = self._make_request(search_url)
-            if not response:
+            # Zkusíme API
+            jobs = self._fetch_jobs_from_api(keyword)
+
+            if jobs:
+                all_jobs.extend(jobs)
+                self.logger.info(f"Nalezeno {len(jobs)} nabídek pro '{keyword}'")
+            else:
                 self.logger.warning(f"Nepodařilo se získat výsledky pro '{keyword}'")
-                continue
-
-            soup = self._parse_html(response.text)
-            if not soup:
-                continue
-
-            # Debug: Zalogujeme základní strukturu stránky
-            self._log_page_structure(soup)
-
-            jobs = self._extract_jobs_from_page(soup, keyword)
-            all_jobs.extend(jobs)
-
-            self.logger.info(f"Nalezeno {len(jobs)} nabídek pro '{keyword}'")
 
         # Odstranění duplicit podle URL
         unique_jobs = self._deduplicate_jobs(all_jobs)
@@ -140,215 +93,252 @@ class StartupJobsScraper(BaseScraper):
         self.logger.info(f"Celkem nalezeno {len(unique_jobs)} unikátních nabídek na startupjobs.cz")
         return unique_jobs
 
-    def _log_page_structure(self, soup) -> None:
+    def _fetch_jobs_from_api(self, keyword: str) -> List[Dict]:
         """
-        Zaloguje strukturu stránky pro debug účely.
-        Pomáhá identifikovat správné selektory.
-        """
-        self.logger.debug("=== DEBUG: Analýza HTML struktury ===")
-
-        # Najdi potenciální kontejnery nabídek
-        for tag in ['article', 'div', 'li', 'a']:
-            elements = soup.find_all(tag)
-            classes = set()
-            for el in elements[:50]:  # Omezíme na prvních 50
-                if el.get('class'):
-                    classes.update(el.get('class'))
-            if classes:
-                job_related = [c for c in classes if any(
-                    kw in c.lower() for kw in ['job', 'offer', 'card', 'position', 'listing', 'result']
-                )]
-                if job_related:
-                    self.logger.debug(f"<{tag}> třídy relevantní pro nabídky: {job_related}")
-
-    def _find_job_containers(self, soup) -> List:
-        """
-        Najde kontejnery s nabídkami práce pomocí více fallback selektorů.
-
-        Returns:
-            Seznam BeautifulSoup elementů obsahujících nabídky
-        """
-        for tag, attrs in self.JOB_CONTAINER_SELECTORS:
-            try:
-                if 'class_' in attrs:
-                    containers = soup.find_all(tag, class_=attrs['class_'])
-                elif 'attrs' in attrs:
-                    containers = soup.find_all(tag, attrs=attrs['attrs'])
-                else:
-                    containers = soup.find_all(tag, attrs)
-
-                if containers and len(containers) > 0:
-                    self.logger.debug(f"Nalezeny kontejnery pomocí: <{tag}> {attrs} - počet: {len(containers)}")
-                    return containers
-            except Exception as e:
-                self.logger.debug(f"Selector <{tag}> {attrs} selhal: {e}")
-                continue
-
-        return []
-
-    def _find_element_text(self, container, selectors: List, default: str = "N/A") -> str:
-        """
-        Najde text elementu pomocí seznamu selektorů.
+        Získá nabídky z API.
 
         Args:
-            container: BeautifulSoup element k prohledání
-            selectors: Seznam (tag, attrs) tuples
-            default: Výchozí hodnota pokud nenalezeno
+            keyword: Klíčové slovo pro vyhledávání
 
         Returns:
-            Nalezený text nebo default hodnota
-        """
-        for tag, attrs in selectors:
-            try:
-                if 'class_' in attrs:
-                    element = container.find(tag, class_=attrs['class_'])
-                else:
-                    element = container.find(tag, attrs) if attrs else container.find(tag)
-
-                if element:
-                    text = element.get_text(strip=True)
-                    if text:
-                        return text
-            except Exception:
-                continue
-
-        return default
-
-    def _extract_jobs_from_page(self, soup, keyword: str) -> List[Dict]:
-        """
-        Extrahuje nabídky ze stránky s výsledky.
-
-        Args:
-            soup: BeautifulSoup objekt stránky
-            keyword: Hledané klíčové slovo
-
-        Returns:
-            Seznam slovníků s daty nabídek
+            Seznam nabídek
         """
         jobs = []
 
-        job_containers = self._find_job_containers(soup)
+        # Zkusíme různé API formáty
+        api_urls = [
+            # Hlavní API endpoint
+            f"https://www.startupjobs.cz/api/offers?search={urllib.parse.quote_plus(keyword)}",
+            # Alternativní endpoint
+            f"https://api.startupjobs.cz/api/offers?search={urllib.parse.quote_plus(keyword)}",
+            # GraphQL-like endpoint
+            f"https://www.startupjobs.cz/_nuxt/data/offers?search={urllib.parse.quote_plus(keyword)}",
+        ]
 
-        if not job_containers:
-            self.logger.warning("Nenalezeny žádné kontejnery s nabídkami")
-            self.logger.debug("Zkuste zkontrolovat HTML strukturu a upravit selektory")
-            # Debug: Uložíme část HTML pro analýzu
-            self._save_debug_html(soup)
-            return jobs
+        for api_url in api_urls:
+            self.logger.debug(f"Zkouším API: {api_url}")
 
-        self.logger.debug(f"Nalezeno {len(job_containers)} potenciálních nabídek")
-
-        for job_elem in job_containers:
             try:
-                job_data = self._extract_job_details(job_elem)
-                if job_data and job_data.get('nazev_pozice') != "N/A":
-                    jobs.append(job_data)
+                response = self._make_request(api_url)
+                if response and response.status_code == 200:
+                    jobs = self._parse_api_response(response, keyword)
+                    if jobs:
+                        self.logger.debug(f"API {api_url} vrátilo {len(jobs)} nabídek")
+                        return jobs
             except Exception as e:
-                self.logger.error(f"Chyba při extrakci nabídky: {e}", exc_info=True)
+                self.logger.debug(f"API {api_url} selhalo: {e}")
                 continue
+
+        # Fallback - zkusíme parsovat Nuxt data z HTML
+        jobs = self._fetch_from_nuxt_data(keyword)
 
         return jobs
 
-    def _extract_job_details(self, job_element) -> Optional[Dict]:
+    def _parse_api_response(self, response, keyword: str) -> List[Dict]:
         """
-        Extrahuje detaily o nabídce z HTML elementu.
+        Parsuje JSON odpověď z API.
 
         Args:
-            job_element: BeautifulSoup element s nabídkou
+            response: HTTP response objekt
+            keyword: Hledané klíčové slovo
 
         Returns:
-            Slovník s daty nabídky nebo None při chybě
+            Seznam nabídek
+        """
+        jobs = []
+
+        try:
+            data = response.json()
+
+            # Různé formáty API odpovědí
+            offers = []
+            if isinstance(data, list):
+                offers = data
+            elif isinstance(data, dict):
+                offers = data.get('data', []) or data.get('offers', []) or data.get('items', []) or data.get('results', [])
+
+            for offer in offers:
+                job = self._parse_offer(offer)
+                if job:
+                    jobs.append(job)
+
+        except json.JSONDecodeError as e:
+            self.logger.debug(f"Nepodařilo se parsovat JSON: {e}")
+        except Exception as e:
+            self.logger.debug(f"Chyba při parsování API odpovědi: {e}")
+
+        return jobs
+
+    def _parse_offer(self, offer: Dict) -> Optional[Dict]:
+        """
+        Parsuje jednotlivou nabídku z API.
+
+        Args:
+            offer: Slovník s daty nabídky z API
+
+        Returns:
+            Standardizovaný slovník nabídky
         """
         try:
-            # Název pozice
-            nazev_pozice = self._find_element_text(job_element, self.TITLE_SELECTORS, "N/A")
+            # Název pozice - různé možné klíče
+            nazev_pozice = (
+                offer.get('name') or
+                offer.get('title') or
+                offer.get('position') or
+                offer.get('nazev') or
+                offer.get('jobTitle') or
+                "N/A"
+            )
 
-            # URL nabídky
-            url = self._extract_url(job_element)
+            if nazev_pozice == "N/A":
+                return None
 
             # Společnost
-            spolecnost = self._find_element_text(job_element, self.COMPANY_SELECTORS, "N/A")
+            company_data = offer.get('company') or offer.get('startup') or {}
+            if isinstance(company_data, dict):
+                spolecnost = company_data.get('name') or company_data.get('title') or "N/A"
+            else:
+                spolecnost = str(company_data) if company_data else "N/A"
 
             # Lokace
-            lokace = self._find_element_text(job_element, self.LOCATION_SELECTORS, "N/A")
+            locations = offer.get('locations') or offer.get('location') or []
+            if isinstance(locations, list):
+                lokace = ", ".join([
+                    loc.get('name') or loc.get('city') or str(loc)
+                    for loc in locations if loc
+                ]) or "N/A"
+            elif isinstance(locations, dict):
+                lokace = locations.get('name') or locations.get('city') or "N/A"
+            else:
+                lokace = str(locations) if locations else "N/A"
+
+            # URL nabídky
+            url = offer.get('url') or offer.get('link') or ""
+            if not url and offer.get('slug'):
+                url = f"{self.base_url}/nabidka/{offer.get('slug')}"
+            elif not url and offer.get('id'):
+                url = f"{self.base_url}/nabidka/{offer.get('id')}"
+
+            if url and not url.startswith('http'):
+                url = self.base_url + url
 
             # Mzda
-            mzda = self._find_element_text(job_element, self.SALARY_SELECTORS, None)
-            if mzda == "N/A":
+            salary_data = offer.get('salary') or offer.get('mzda') or {}
+            if isinstance(salary_data, dict):
+                mzda_min = salary_data.get('min') or salary_data.get('from') or ""
+                mzda_max = salary_data.get('max') or salary_data.get('to') or ""
+                currency = salary_data.get('currency', 'CZK')
+                if mzda_min and mzda_max:
+                    mzda = f"{mzda_min} - {mzda_max} {currency}"
+                elif mzda_min:
+                    mzda = f"od {mzda_min} {currency}"
+                elif mzda_max:
+                    mzda = f"do {mzda_max} {currency}"
+                else:
+                    mzda = None
+            elif salary_data:
+                mzda = str(salary_data)
+            else:
                 mzda = None
 
             # Typ úvazku
-            typ_uvazku = self._find_element_text(job_element, self.JOB_TYPE_SELECTORS, "N/A")
+            employment_types = offer.get('employmentTypes') or offer.get('employment_type') or []
+            if isinstance(employment_types, list):
+                typ_uvazku = ", ".join([
+                    et.get('name') or str(et)
+                    for et in employment_types if et
+                ]) or "N/A"
+            else:
+                typ_uvazku = str(employment_types) if employment_types else "N/A"
 
-            # Popis - zkusíme najít kratký popis/perex
-            popis = self._extract_description(job_element)
+            # Popis
+            popis = offer.get('description') or offer.get('perex') or offer.get('summary') or ""
 
-            job_data = {
+            return {
                 'nazev_pozice': nazev_pozice,
                 'spolecnost': spolecnost,
                 'lokace': lokace,
                 'typ_uvazku': typ_uvazku,
                 'url': url,
                 'mzda': mzda,
-                'popis': popis,
+                'popis': popis[:500] if popis else "",  # Omezíme délku popisu
                 'portal': 'startupjobs.cz',
                 'datum_nalezeni': datetime.now().strftime('%Y-%m-%d'),
             }
 
-            self.logger.debug(f"Extrahována nabídka: {nazev_pozice} @ {spolecnost}")
-            return job_data
-
         except Exception as e:
-            self.logger.error(f"Chyba při parsování job elementu: {e}", exc_info=True)
+            self.logger.debug(f"Chyba při parsování nabídky: {e}")
             return None
 
-    def _extract_url(self, job_element) -> str:
+    def _fetch_from_nuxt_data(self, keyword: str) -> List[Dict]:
         """
-        Extrahuje URL nabídky.
+        Zkusí získat data z Nuxt.js __NUXT_DATA__ v HTML.
+
+        StartupJobs používá Nuxt.js, které vkládá data do HTML.
+        Toto je fallback pokud API nefunguje.
 
         Args:
-            job_element: BeautifulSoup element
+            keyword: Klíčové slovo
 
         Returns:
-            Absolutní URL nabídky
+            Seznam nabídek
         """
-        # Zkusíme najít odkaz
-        url_elem = job_element.find('a', href=True)
+        jobs = []
 
-        # Pokud je celý element odkaz
-        if not url_elem and job_element.name == 'a' and job_element.get('href'):
-            url_elem = job_element
+        search_url = self._build_search_url(keyword)
+        self.logger.debug(f"Zkouším Nuxt data z: {search_url}")
 
-        if url_elem:
-            url = url_elem.get('href', '')
-            # Normalizace URL
-            if url and not url.startswith('http'):
-                if url.startswith('/'):
-                    url = self.base_url + url
-                else:
-                    url = self.base_url + '/' + url
-            return url
+        response = self._make_request(search_url)
+        if not response:
+            return jobs
 
-        return ""
+        try:
+            # Hledáme __NUXT_DATA__ script tag
+            soup = self._parse_html(response.text)
+            if not soup:
+                return jobs
 
-    def _extract_description(self, job_element) -> str:
+            nuxt_data_script = soup.find('script', {'id': '__NUXT_DATA__'})
+            if nuxt_data_script and nuxt_data_script.string:
+                # Nuxt 3 používá speciální formát dat
+                nuxt_text = nuxt_data_script.string
+                self.logger.debug(f"Nalezen __NUXT_DATA__ script ({len(nuxt_text)} znaků)")
+
+                # Zkusíme parsovat jako JSON array
+                try:
+                    nuxt_array = json.loads(nuxt_text)
+                    # Hledáme objekty s nabídkami v poli
+                    jobs = self._extract_jobs_from_nuxt_array(nuxt_array)
+                except json.JSONDecodeError:
+                    self.logger.debug("Nepodařilo se parsovat Nuxt data jako JSON")
+
+        except Exception as e:
+            self.logger.debug(f"Chyba při parsování Nuxt dat: {e}")
+
+        return jobs
+
+    def _extract_jobs_from_nuxt_array(self, nuxt_array: list) -> List[Dict]:
         """
-        Extrahuje krátký popis/perex nabídky.
+        Extrahuje nabídky z Nuxt.js data array.
 
         Args:
-            job_element: BeautifulSoup element
+            nuxt_array: Pole dat z __NUXT_DATA__
 
         Returns:
-            Text popisu nebo prázdný string
+            Seznam nabídek
         """
-        description_selectors = [
-            ('p', {'class_': re.compile(r'desc|perex|summary|excerpt', re.I)}),
-            ('div', {'class_': re.compile(r'desc|perex|summary', re.I)}),
-            ('span', {'class_': re.compile(r'desc|perex', re.I)}),
-            ('p', {}),  # Fallback na první odstavec
-        ]
+        jobs = []
 
-        return self._find_element_text(job_element, description_selectors, "")
+        # Nuxt 3 data jsou pole referencí, hledáme objekty vypadající jako nabídky
+        for item in nuxt_array:
+            if isinstance(item, dict):
+                # Hledáme objekty s klíči typickými pro nabídky
+                if any(key in item for key in ['name', 'title', 'slug', 'company', 'locations']):
+                    job = self._parse_offer(item)
+                    if job:
+                        jobs.append(job)
+
+        return jobs
 
     def _deduplicate_jobs(self, jobs: List[Dict]) -> List[Dict]:
         """
@@ -369,25 +359,10 @@ class StartupJobsScraper(BaseScraper):
                 seen_urls.add(url)
                 unique_jobs.append(job)
             elif not url:
-                # Nabídky bez URL zachováme, ale logujeme
-                self.logger.debug(f"Nabídka bez URL: {job.get('nazev_pozice')}")
-                unique_jobs.append(job)
+                # Nabídky bez URL - použijeme hash z názvu a společnosti
+                job_hash = f"{job.get('nazev_pozice')}|{job.get('spolecnost')}"
+                if job_hash not in seen_urls:
+                    seen_urls.add(job_hash)
+                    unique_jobs.append(job)
 
         return unique_jobs
-
-    def _save_debug_html(self, soup) -> None:
-        """
-        Uloží část HTML pro debug analýzu.
-
-        Args:
-            soup: BeautifulSoup objekt
-        """
-        try:
-            # Najdeme hlavní obsah stránky
-            main_content = soup.find('main') or soup.find('div', {'id': 'content'}) or soup.find('body')
-            if main_content:
-                # Uložíme prvních 5000 znaků
-                debug_html = str(main_content)[:5000]
-                self.logger.debug(f"HTML struktura (prvních 5000 znaků):\n{debug_html}")
-        except Exception as e:
-            self.logger.debug(f"Nepodařilo se uložit debug HTML: {e}")
